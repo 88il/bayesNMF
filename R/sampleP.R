@@ -39,30 +39,66 @@ get_mu_sigmasq_Pn_normal_exponential <- function(n, M, Theta, dims, gamma = 1) {
 #' @param dims list of dimensions
 #' @param gamma double, tempering parameter
 #'
-#' @return list of two items, mu and sigmasq
+#' @return list of two items, mu and sigmasq or mu and covar
 #' @noRd
 get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
     Mhat_no_n <- get_Mhat_no_n(Theta, dims, n)
 
-    # compute mean
-    mu_num_term_1 <- gamma * Theta$A[1,n] * (1/Theta$sigmasq) * (sweep(
-        (M - Mhat_no_n), # dim KxG
-        2, # multiply each row by E[n,]
-        Theta$E[n, ], # length G
-        "*"
-    ) %>% # dim KxG
-        rowSums()) # length K
-    mu_num_term_2 <- Theta$Mu_p[, n] / Theta$Sigmasq_p[,n] # length K
-    denom <- (1/Theta$Sigmasq_p[,n]) + gamma * sum(Theta$A[1,n] * Theta$E[n, ] ** 2) / Theta$sigmasq
+    if(is.null(Theta$Covar_p)){
+        # compute mean
+        mu_num_term_1 <- gamma * Theta$A[1,n] * (1/Theta$sigmasq) * (sweep(
+            (M - Mhat_no_n), # dim KxG
+            2, # multiply each row by E[n,]
+            Theta$E[n, ], # length G
+            "*"
+        ) %>% # dim KxG
+            rowSums()) # length K
+        mu_num_term_2 <- Theta$Mu_p[, n] / Theta$Sigmasq_p[,n] # length K
+        denom <- (1/Theta$Sigmasq_p[,n]) + gamma * sum(Theta$A[1,n] * Theta$E[n, ] ** 2) / Theta$sigmasq
 
 
-    mu_P <- (mu_num_term_1 + mu_num_term_2) / denom # length K
-    sigmasq_P <- 1 / denom # length K
+        mu_P <- (mu_num_term_1 + mu_num_term_2) / denom # length K
+        sigmasq_P <- 1 / denom # length K
 
-    return(list(
-        mu = mu_P,
-        sigmasq = sigmasq_P
-    ))
+        return(list(
+            mu = mu_P,
+            sigmasq = sigmasq_P
+        ))
+    }
+
+    # case when P has covariance matrix
+    # NOTES: incorporate gamma and A matrix (from PAE) ?
+    else{
+        #' Create kxk covariance matrix for M using sigmasq values (Normal)
+        #' @param Theta list of parameters
+        #' @param dims list of dimensions
+        #'
+        #' @return matrix
+        #' @noRd
+        get_M_covariance_matrix <- function(Theta, dims){ # abstract this function somewhere else?
+            covar_M <- matrix(0, dims$K, dims$K)
+            diag(covar_M) <- Theta$sigmasq
+            return(covar_M)
+        }
+
+        sigma_M <- get_M_covariance_matrix(Theta, dims) # KxK
+        covar_P_inv <- inv(Theta$covar_P) # KxK
+        sigma_M_inv <- inv(sigma_M) # KxK
+        A_star <- sapply(1:dims$K, function(index) sum(E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
+
+        A <- inv(covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv) # KxK
+        B <- covar_P_inv * Theta$Mu_p[, n] - sigma_M_inv * A_star # Kx1
+
+        A_inv <- inv(A)
+
+        mu_P <- A_inv * B
+        covar_P <- A_inv
+
+        return(list(
+            mu = mu_P,
+            covar = covar_P
+        ))
+    }
 }
 
 #' sample P[,n] for Normal likelihood

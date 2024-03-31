@@ -8,6 +8,8 @@
 #' @param sigmasq_p see `Sigmasq_p`
 #' @param Sigmasq_p variance for the truncated normal prior on `P`, matrix
 #' size K x N. Defaults to all same value `sigmasq_p`
+#' @param Covar_p covariance for the truncated MVN prior on `P`, matrix
+#' size K x N
 #' @param mu_e see `Mu_e`
 #' @param Mu_e mean for the truncated normal prior on `E`, matrix
 #' size N x G. Defaults to all same value `mu_e`
@@ -30,6 +32,7 @@ set_truncnorm_prior_parameters <- function(
         Mu_p = matrix(mu_p, nrow = dims$K, ncol = dims$N),
         sigmasq_p = mu_p, #mu_p/10,
         Sigmasq_p = matrix(sigmasq_p, nrow = dims$K, ncol = dims$N),
+        Covar_p = NULL,
         mu_e = sqrt(100/dims$N), #mean(colSums(M))/(N*100),
         Mu_e = matrix(mu_e, nrow = dims$N, ncol = dims$G),
         sigmasq_e = mu_e, #mu_e/10,
@@ -46,6 +49,7 @@ set_truncnorm_prior_parameters <- function(
         Sigmasq_p = Sigmasq_p,
         Mu_e = Mu_e,
         Sigmasq_e = Sigmasq_e,
+        Covar_p = Covar_p,
         Alpha = Alpha,
         Beta = Beta,
         a = a,
