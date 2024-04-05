@@ -87,11 +87,11 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
         A_star <- sapply(1:dims$K, function(index) sum(E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
 
         A <- inv(covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv) # KxK
-        B <- covar_P_inv * Theta$Mu_p[, n] - sigma_M_inv * A_star # Kx1
+        B <- covar_P_inv %*% Theta$Mu_p[, n] - sigma_M_inv %*% A_star # Kx1
 
         A_inv <- inv(A)
 
-        mu_P <- A_inv * B
+        mu_P <- A_inv %*% B
         covar_P <- A_inv
 
         return(list(
