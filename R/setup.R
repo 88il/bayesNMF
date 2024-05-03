@@ -37,9 +37,9 @@ set_truncnorm_prior_parameters <- function(
         Mu_e = matrix(mu_e, nrow = dims$N, ncol = dims$G),
         sigmasq_e = mu_e, #mu_e/10,
         Sigmasq_e = matrix(sigmasq_e, nrow = dims$N, ncol = dims$G),
-        alpha = 0.1,
+        alpha = 1,
         Alpha = rep(alpha, dims$K),
-        beta = 2,
+        beta = 1,
         Beta = rep(beta, dims$K),
         a = 0.8,
         b = 0.8
@@ -185,11 +185,33 @@ initialize_Theta <- function(
         for (k in 1:dims$K) {
             for (n in 1:dims$N) {
                 if (prior == 'truncnormal') {
-                    Theta$P[k,n] <- truncnorm::rtruncnorm(
-                        1, a = 0, b = Inf,
-                        mean = Theta$Mu_p[k,n],
-                        sd = sqrt(Theta$Sigmasq_p[k,n])
-                    )
+                    # non MVN case for P
+                    if (is.null(Theta$Covar_p)){
+                        Theta$P[k,n] <- truncnorm::rtruncnorm(
+                            1, a = 0, b = Inf,
+                            mean = Theta$Mu_p[k,n],
+                            sd = sqrt(Theta$Sigmasq_p[k,n])
+                        )
+                    }
+                    # MVN for P
+                    else{
+                        mean_vector <- Theta$Mu_p[, n] # K x 1
+
+                        lower <- rep(0, length(mean_vector))
+                        upper <- rep(Inf, length(mean_vector))
+
+                        # Perturb diagonal otherwise "sigma is not positive definite"
+                        newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
+
+                        sample <- tmvtnorm::rtmvnorm(
+                            1, mean = mean_vector, sigma = newsigma,
+                            lower = lower, upper = upper
+                        )
+
+                        # sample every column of Theta$P from MVN
+                        Theta$P[, n] <- sample
+                    }
+
                 } else if (prior == 'exponential') {
                     Theta$P[k,n] <- stats::rexp(1, Theta$Lambda_p[k,n])
                 } else if (prior == 'gamma') {
@@ -227,7 +249,8 @@ initialize_Theta <- function(
     if (likelihood == 'normal') {
         if (is.null(inits$sigmasq)) {
             Theta$sigmasq <- sapply(1:dims$K, function(k) {
-                invgamma::rinvgamma(n = 1, shape = Theta$Alpha[k], scale = Theta$Beta[k])
+                # invgamma::rinvgamma(n = 1, shape = Theta$Alpha[k], scale = Theta$Beta[k])
+                1/rgamma(n = 1, shape = Theta$Alpha[k], rate = Theta$Beta[k])
             })
         } else {
             Theta$sigmasq <- inits$sigmasq
@@ -240,6 +263,7 @@ initialize_Theta <- function(
             }
         }
     }
+
 
     # signature assignment A
     if (learn_A) {

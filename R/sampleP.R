@@ -78,18 +78,35 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
         get_M_covariance_matrix <- function(Theta, dims){ # abstract this function somewhere else?
             covar_M <- matrix(0, dims$K, dims$K)
             diag(covar_M) <- Theta$sigmasq
+            print(Theta$sigmasq)
             return(covar_M)
         }
 
+        cov_p = Theta$Covar_p
         sigma_M <- get_M_covariance_matrix(Theta, dims) # KxK
-        covar_P_inv <- inv(Theta$covar_P) # KxK
-        sigma_M_inv <- inv(sigma_M) # KxK
-        A_star <- sapply(1:dims$K, function(index) sum(E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
 
-        A <- inv(covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv) # KxK
+
+        # if (kappa(sigma_M) > 1e12) {
+        #     stop("Matrix is close to singular or poorly conditioned with a high kappa value.")
+        # }
+
+        # get rid of bottom 10% of vals
+        cutoff = quantile(abs(cov_p), 0.1)
+        cov_p[abs(cov_p) < cutoff] = 0
+
+        # cutoff = quantile(abs(sigma_M), 0.1)
+        # sigma_M[abs(sigma) < cutoff] = 0
+
+        sigma_M_inv <- solve(sigma_M) # KxK
+        covar_P_inv <- solve(cov_p) # KxK
+        # sigma_M_inv <- solve(sigma_M) # KxK
+
+        A_star <- sapply(1:dims$K, function(index) sum(Theta$E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
+
+        A <- solve(covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv) # KxK
         B <- covar_P_inv %*% Theta$Mu_p[, n] - sigma_M_inv %*% A_star # Kx1
 
-        A_inv <- inv(A)
+        A_inv <- solve(A)
 
         mu_P <- A_inv %*% B
         covar_P <- A_inv
@@ -119,12 +136,41 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior = 'truncnormal', gamma = 1
         mu_sigmasq_P <- get_mu_sigmasq_Pn_normal_exponential(n, M, Theta, dims, gamma = gamma)
     }
 
+    # non MVN case
+    if (is.null(Theta$Covar_p)){
+        mu_P = mu_sigmasq_P$mu
+        sigmasq_P = mu_sigmasq_P$sigmasq
 
-    mu_P = mu_sigmasq_P$mu
-    sigmasq_P = mu_sigmasq_P$sigmasq
+        # sample from truncated normal
+        truncnorm::rtruncnorm(1, mean = mu_P, sd = sqrt(sigmasq_P), a = 0, b = Inf)
+    }
+    else{
+        # mu_P = mu_sigmasq_P$mu # K x 1
+        # covar_P = mu_sigmasq_P$covar # K x K
+        #
+        # # sample from multivariate truncated normal
+        # # Lower and upper bounds set to 0 and Inf for all dimensions
+        # lower <- rep(0, length(mu_P))
+        # upper <- rep(Inf, length(mu_P))
+        #
+        # tmvtnorm::rtmvnorm(1, mean = mu_P, sigma = covar_P, lower = lower, upper = upper)
 
-    # sample from truncated normal
-    truncnorm::rtruncnorm(1, mean = mu_P, sd = sqrt(sigmasq_P), a = 0, b = Inf)
+        mean_vector <- mu_sigmasq_P$mu[, n] # K x 1
+
+        lower <- rep(0, length(mean_vector))
+        upper <- rep(Inf, length(mean_vector))
+
+        # Perturb diagonal otherwise "sigma is not positive definite"
+        newsigma <- mu_sigmasq_P$covar # + diag(1e-6, nrow(Theta$Covar_p))
+
+        sample <- tmvtnorm::rtmvnorm(
+            1, mean = mean_vector, sigma = newsigma,
+            lower = lower, upper = upper
+        )
+
+        # sample every column of Theta$P from MVN
+        Theta$P[, n] <- sample
+    }
 }
 
 #' sample P[,n] for Poisson likelihood

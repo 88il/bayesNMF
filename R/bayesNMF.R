@@ -151,6 +151,7 @@ bayesNMF <- function(
 
     # Gibbs sampler: sample niters times
     for (iter in 1:niters) {
+        print(iter)
 
         # update P
         for (n in 1:dims$N) {

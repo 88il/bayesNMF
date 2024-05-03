@@ -34,3 +34,14 @@ reassign_one <- function(sim_mat) {
     reassigned_sim_mat <- sim_mat[, reassignment$pairs[,2]]
     reassigned_sim_mat
 }
+
+get_cosmic <- function() {
+    P <- read.csv(
+        "https://cog.sanger.ac.uk/cosmic-signatures-production/documents/COSMIC_v3.3.1_SBS_GRCh37.txt",
+        sep = '\t'
+    ) %>%
+        column_to_rownames("Type") %>%
+        as.matrix() %>%
+        # as.numeric()
+        return(P)
+}
