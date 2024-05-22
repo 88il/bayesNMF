@@ -69,6 +69,7 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
     # case when P has covariance matrix
     # NOTES: incorporate gamma and A matrix (from PAE) ?
     else{
+        # print('here')
         #' Create kxk covariance matrix for M using sigmasq values (Normal)
         #' @param Theta list of parameters
         #' @param dims list of dimensions
@@ -77,8 +78,11 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
         #' @noRd
         get_M_covariance_matrix <- function(Theta, dims){ # abstract this function somewhere else?
             covar_M <- matrix(0, dims$K, dims$K)
+
+            # print('printing Theta$sigamsq:')
+            # print(Theta$sigmasq)
+
             diag(covar_M) <- Theta$sigmasq
-            print(Theta$sigmasq)
             return(covar_M)
         }
 
@@ -90,30 +94,49 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
         #     stop("Matrix is close to singular or poorly conditioned with a high kappa value.")
         # }
 
-        # get rid of bottom 10% of vals
-        cutoff = quantile(abs(cov_p), 0.1)
+        # # get rid of bottom 10% of vals
+        cutoff = quantile(abs(cov_p), 0.8)
         cov_p[abs(cov_p) < cutoff] = 0
+
+        epsilon <- 1e-3
+        cov_p_new <- cov_p + diag(epsilon, nrow(cov_p))
+
+        cov_p_new <- lqmm::make.positive.definite(cov_p_new, tol=1e-3)
 
         # cutoff = quantile(abs(sigma_M), 0.1)
         # sigma_M[abs(sigma) < cutoff] = 0
 
         sigma_M_inv <- solve(sigma_M) # KxK
-        covar_P_inv <- solve(cov_p) # KxK
+        covar_P_inv <- solve(cov_p_new) # KxK
         # sigma_M_inv <- solve(sigma_M) # KxK
 
-        A_star <- sapply(1:dims$K, function(index) sum(Theta$E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
+        A_star <- sapply(1:dims$K, function(k) sum(Theta$E[n, ] * (M[k, ] - Mhat_no_n[k, ]))) # Kx1 vector
 
-        A <- solve(covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv) # KxK
+        # print('printing out math')
+        # print(Theta$E)
+        #
+        # print('printing sigma_M_inv:')
+        # print(sigma_M_inv)
+        #
+        # print('printing sum(Theta$E[n, ] ** 2) :')
+        # print(sum(Theta$E[n, ] ** 2))
+        #
+        # print('printing covar_P_inv:')
+        # print(covar_P_inv)
+
+        A <- covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv # KxK
         B <- covar_P_inv %*% Theta$Mu_p[, n] - sigma_M_inv %*% A_star # Kx1
 
         A_inv <- solve(A)
 
         mu_P <- A_inv %*% B
         covar_P <- A_inv
+        covar_P_inv <- A # check for issues in rounding, use H precision
 
         return(list(
             mu = mu_P,
             covar = covar_P
+            covar_inv = covar_P_inv
         ))
     }
 }
@@ -155,21 +178,96 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior = 'truncnormal', gamma = 1
         #
         # tmvtnorm::rtmvnorm(1, mean = mu_P, sigma = covar_P, lower = lower, upper = upper)
 
-        mean_vector <- mu_sigmasq_P$mu[, n] # K x 1
+        mean_vector <- mu_sigmasq_P$mu[,1] # K x 1
 
         lower <- rep(0, length(mean_vector))
         upper <- rep(Inf, length(mean_vector))
 
-        # Perturb diagonal otherwise "sigma is not positive definite"
-        newsigma <- mu_sigmasq_P$covar # + diag(1e-6, nrow(Theta$Covar_p))
+        # print('printing mu_sigmasq_P$covar:')
+        # print(mu_sigmasq_P$covar)
 
+
+        # Perturb diagonal otherwise "sigma is not positive definite"
+        epsilon <- 0 # 1e-5
+        newsigma <- mu_sigmasq_P$covar + diag(epsilon, nrow(Theta$Covar_p))
+
+        newsigma_inv <- mu_sigmasq_P$covar_inv
+
+        # eigenvalues <- eigen(newsigma)$values
+        # print('printing evals: ')
+        # print(eigenvalues)
+        # print('done printing evals')
+        # if (any(eigenvalues <= 0)) {
+        #     stop("Covariance matrix is not positive definite")
+        # }
+
+        # print(newsigma)
+
+        newsigma <- as.matrix(Matrix::forceSymmetric(newsigma))
+
+        # print(newsigma)
+        # print(newsigma - t(newsigma))
+        # print(isSymmetric(newsigma))
+        # print(matrixcalc::is.positive.definite(newsigma))
+        # print(det(newsigma))
+
+        newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+
+        # print(newsigma)
+
+        alpha <- mvtnorm::pmvnorm(lower = lower, upper = upper,
+                         mean = mean_vector, sigma = newsigma)
+
+        # print('alpha:')
+        # print(alpha)
+
+        # newsigma <- newsigma + diag(ncol(newsigma))*0.01
+
+        # print('NEW')
+        # print(newsigma)
+        # print(det(newsigma))
+        # print(matrixcalc::is.positive.definite(newsigma))
+
+        # print("mean_vector:")
+        # print(mean_vector)
+        # saveRDS(mean_vector, 'mean_vector.rds')
+        #
+        # print("newsigma:")
+        # print(newsigma)
+        # saveRDS(newsigma, 'newsigma.rds') # newsigma <- readRDS('newsigma.rds')
+        #
+        # print("lower bounds:")
+        # print(lower)
+        #
+        # print("upper bounds:")
+        # print(upper)
+        #
+        # print("start value:")
+        # print(Theta$P[, n])
+        # saveRDS(Theta$P[, n], 'startval.rds')
+
+        mean_vector[mean_vector < 0] <- 0
+
+        # H for solve(newsigma)
         sample <- tmvtnorm::rtmvnorm(
-            1, mean = mean_vector, sigma = newsigma,
-            lower = lower, upper = upper
+            1, mean = mean_vector, H = newsigma_inv,
+            lower = lower, upper = upper,
+            algorithm = "gibbs",
+            burn.in.samples = 1, start.value = Theta$P[, n]
         )
 
+        # sample <- tmvtnorm::rtmvnorm(
+        #     1, mean = mean_vector, sigma = newsigma,
+        #     lower = lower, upper = upper,
+        #     algorithm = "gibbs",
+        #     burn.in.samples = 1, start.value = Theta$P[, n]
+        # )
+
+        # print(sample)
+
+
         # sample every column of Theta$P from MVN
-        Theta$P[, n] <- sample
+        return(sample)
     }
 }
 

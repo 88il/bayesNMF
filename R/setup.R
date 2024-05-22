@@ -37,9 +37,9 @@ set_truncnorm_prior_parameters <- function(
         Mu_e = matrix(mu_e, nrow = dims$N, ncol = dims$G),
         sigmasq_e = mu_e, #mu_e/10,
         Sigmasq_e = matrix(sigmasq_e, nrow = dims$N, ncol = dims$G),
-        alpha = 1,
+        alpha = 1, # 1
         Alpha = rep(alpha, dims$K),
-        beta = 1,
+        beta = 1, # 1
         Beta = rep(beta, dims$K),
         a = 0.8,
         b = 0.8
@@ -203,6 +203,8 @@ initialize_Theta <- function(
                         # Perturb diagonal otherwise "sigma is not positive definite"
                         newsigma <- Theta$Covar_p + diag(1e-6, nrow(Theta$Covar_p))
 
+                        newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+
                         sample <- tmvtnorm::rtmvnorm(
                             1, mean = mean_vector, sigma = newsigma,
                             lower = lower, upper = upper
@@ -248,10 +250,11 @@ initialize_Theta <- function(
     # variance sigmasq
     if (likelihood == 'normal') {
         if (is.null(inits$sigmasq)) {
-            Theta$sigmasq <- sapply(1:dims$K, function(k) {
-                # invgamma::rinvgamma(n = 1, shape = Theta$Alpha[k], scale = Theta$Beta[k])
-                1/rgamma(n = 1, shape = Theta$Alpha[k], rate = Theta$Beta[k])
-            })
+            # Theta$sigmasq <- sapply(1:dims$K, function(k) {
+            #     invgamma::rinvgamma(n = 1, shape = Theta$Alpha[k], scale = Theta$Beta[k])
+            #     # 1/rgamma(n = 1, shape = Theta$Alpha[k], rate = Theta$Beta[k])
+            # })
+            Theta$sigmasq <- armspp::arms(n_samples = dims$K, log_pdf = function(x) {-1*log(x)}, lower = 0, upper = 1000)
         } else {
             Theta$sigmasq <- inits$sigmasq
         }

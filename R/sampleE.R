@@ -58,6 +58,15 @@ get_mu_sigmasq_En_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
     mu_E <- (mu_num_term_1 + mu_num_term_2) / denom # length G
     sigmasq_E <- 1 / denom
 
+    # print(mu_num_term_1)
+    # print('printing ThetaP')
+    # print(Theta$P)
+    #
+    # print('in getEnNorm')
+    # print(mu_E)
+    # print(sigmasq_E)
+    # print('done EnNorm')
+
     return(list(
         mu = mu_E,
         sigmasq = sigmasq_E

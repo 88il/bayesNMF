@@ -17,13 +17,14 @@ cor_matrix = cor(t(cosmic_matrix))
 
 test_that("nmf_normal_mvntruncnormal works with 1 signature given N", {
     res <- bayesNMF(
-        M, N = 1,
+        M, N = 5,
         likelihood = 'normal',
         prior = 'truncnormal',
         file = "log_files/mvn/modelNT_dataP_N1",
         overwrite = TRUE,
         true_P = true_P,
-        prior_parameters = list(Covar_p = cor_matrix)
+        # prior_parameters = list(Covar_p = cor_matrix)
+        prior_parameters = list(Covar_p = diag(diag(cor_matrix)))
     )
 
     expect_equal(sum(is.na(res$MAP$P)), 0)

@@ -151,7 +151,7 @@ bayesNMF <- function(
 
     # Gibbs sampler: sample niters times
     for (iter in 1:niters) {
-        print(iter)
+        # print(iter)
 
         # update P
         for (n in 1:dims$N) {
@@ -160,7 +160,10 @@ bayesNMF <- function(
 
         # update E
         for (n in 1:dims$N) {
+            # print('here: ')
+            print(iter)
             Theta$E[n, ] <- sample_En(n, M, Theta, dims, likelihood = likelihood, prior = prior, gamma = gamma_sched[iter])
+            # print(Theta$E[n,])
         }
 
         # if Normal likelihood, update sigmasq

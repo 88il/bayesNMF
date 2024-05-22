@@ -9,12 +9,17 @@
 #' @noRd
 sample_sigmasq_normal <- function(M, Theta, dims, gamma = 1){
     Mhat <- Theta$P %*% diag(Theta$A[1, ]) %*% Theta$E
+    # sigmasq <- sapply(1:dims$K, function(k) {
+    #     sigmasq_k <- invgamma::rinvgamma(
+    #         n = 1,
+    #         shape = Theta$Alpha[k] + gamma * dims$G / 2,
+    #         scale = Theta$Beta[k] + gamma * sum(((M - Mhat)[k,])**2) / 2
+    #     )
+    # })
     sigmasq <- sapply(1:dims$K, function(k) {
-        sigmasq_k <- invgamma::rinvgamma(
-            n = 1,
-            shape = Theta$Alpha[k] + gamma * dims$G / 2,
-            scale = Theta$Beta[k] + gamma * sum(((M - Mhat)[k,])**2) / 2
-        )
+        armspp::arms(n_samples = 1, log_pdf = function(x) {
+            -1*log(x) + gamma * log(dnorm(M[k,], mean = Mhat[k,], sd = sqrt(x)))
+        }, lower = 0, upper = 1000)
     })
 
     return(sigmasq)
