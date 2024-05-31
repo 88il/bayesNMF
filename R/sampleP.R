@@ -124,8 +124,8 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
         # print('printing covar_P_inv:')
         # print(covar_P_inv)
 
-        A <- covar_P_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv # KxK
-        B <- covar_P_inv %*% Theta$Mu_p[, n] - sigma_M_inv %*% A_star # Kx1
+        A <- Theta$Covar_p_inv + sum(Theta$E[n, ] ** 2) * sigma_M_inv # KxK
+        B <- Theta$Covar_p_inv %*% Theta$Mu_p[, n] - sigma_M_inv %*% A_star # Kx1
 
         A_inv <- solve(A)
 
@@ -135,7 +135,7 @@ get_mu_sigmasq_Pn_normal_truncnormal <- function(n, M, Theta, dims, gamma = 1) {
 
         return(list(
             mu = mu_P,
-            covar = covar_P
+            covar = covar_P,
             covar_inv = covar_P_inv
         ))
     }
@@ -168,16 +168,6 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior = 'truncnormal', gamma = 1
         truncnorm::rtruncnorm(1, mean = mu_P, sd = sqrt(sigmasq_P), a = 0, b = Inf)
     }
     else{
-        # mu_P = mu_sigmasq_P$mu # K x 1
-        # covar_P = mu_sigmasq_P$covar # K x K
-        #
-        # # sample from multivariate truncated normal
-        # # Lower and upper bounds set to 0 and Inf for all dimensions
-        # lower <- rep(0, length(mu_P))
-        # upper <- rep(Inf, length(mu_P))
-        #
-        # tmvtnorm::rtmvnorm(1, mean = mu_P, sigma = covar_P, lower = lower, upper = upper)
-
         mean_vector <- mu_sigmasq_P$mu[,1] # K x 1
 
         lower <- rep(0, length(mean_vector))
@@ -193,13 +183,16 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior = 'truncnormal', gamma = 1
 
         newsigma_inv <- mu_sigmasq_P$covar_inv
 
-        # eigenvalues <- eigen(newsigma)$values
+        print('checking if covar_p_inv is PD')
+        print(matrixcalc::is.positive.definite(newsigma_inv))
+
+        eigenvalues <- eigen(newsigma_inv)$values
         # print('printing evals: ')
         # print(eigenvalues)
         # print('done printing evals')
-        # if (any(eigenvalues <= 0)) {
-        #     stop("Covariance matrix is not positive definite")
-        # }
+        if (any(eigenvalues <= 0)) {
+            stop("inv Covariance matrix is not positive definite")
+        }
 
         # print(newsigma)
 
@@ -211,12 +204,12 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior = 'truncnormal', gamma = 1
         # print(matrixcalc::is.positive.definite(newsigma))
         # print(det(newsigma))
 
-        newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
+        # newsigma <- lqmm::make.positive.definite(newsigma, tol=1e-3)
 
         # print(newsigma)
 
-        alpha <- mvtnorm::pmvnorm(lower = lower, upper = upper,
-                         mean = mean_vector, sigma = newsigma)
+        # alpha <- mvtnorm::pmvnorm(lower = lower, upper = upper,
+        #                  mean = mean_vector, sigma = newsigma)
 
         # print('alpha:')
         # print(alpha)
@@ -230,7 +223,7 @@ sample_Pn_normal <- function(n, M, Theta, dims, prior = 'truncnormal', gamma = 1
 
         # print("mean_vector:")
         # print(mean_vector)
-        # saveRDS(mean_vector, 'mean_vector.rds')
+        saveRDS(mean_vector, 'mean_vector.rds')
         #
         # print("newsigma:")
         # print(newsigma)

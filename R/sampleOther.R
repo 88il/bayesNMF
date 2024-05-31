@@ -16,9 +16,10 @@ sample_sigmasq_normal <- function(M, Theta, dims, gamma = 1){
     #         scale = Theta$Beta[k] + gamma * sum(((M - Mhat)[k,])**2) / 2
     #     )
     # })
+
     sigmasq <- sapply(1:dims$K, function(k) {
         armspp::arms(n_samples = 1, log_pdf = function(x) {
-            -1*log(x) + gamma * log(dnorm(M[k,], mean = Mhat[k,], sd = sqrt(x)))
+            -1*log(x) + gamma * sum(log(dnorm(M[k,], mean = Mhat[k,], sd = sqrt(x))))
         }, lower = 0, upper = 1000)
     })
 

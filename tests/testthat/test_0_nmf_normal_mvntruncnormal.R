@@ -15,6 +15,11 @@ get_cosmic <- function() {
 cosmic_matrix <- get_cosmic()
 cor_matrix = cor(t(cosmic_matrix))
 
+# make cor_matrix invertible
+cor_matrix_1 <- cor_matrix
+cutoff = quantile(abs(cor_matrix_1), 0.1)
+cor_matrix_1[abs(cor_matrix_1) < cutoff] = 0
+
 test_that("nmf_normal_mvntruncnormal works with 1 signature given N", {
     res <- bayesNMF(
         M, N = 5,
@@ -23,8 +28,7 @@ test_that("nmf_normal_mvntruncnormal works with 1 signature given N", {
         file = "log_files/mvn/modelNT_dataP_N1",
         overwrite = TRUE,
         true_P = true_P,
-        # prior_parameters = list(Covar_p = cor_matrix)
-        prior_parameters = list(Covar_p = diag(diag(cor_matrix)))
+        prior_parameters = list(Covar_p = diag(diag(cor_matrix)), Covar_p_inv = solve(diag(diag(cor_matrix))))
     )
 
     expect_equal(sum(is.na(res$MAP$P)), 0)
